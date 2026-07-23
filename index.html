@@ -47,38 +47,41 @@
         <button onclick="location.href=location.pathname" style="background:#6c757d;">切断して戻る</button>
     </div>
 
+        <!-- ⚠️ 以下のスクリプト部分（<script>から</script>まで）を丸ごと差し替えてください -->
     <script>
-        const { SkyWayContext, SkyWayRoom } = SkyWayRoom;
-        
         // 🚨 【必須】ここにあなたのSkyWay APIキーを入れてください
-const API_KEY = '77088e00-0018-4668-9bca-4bb642769469'; 
-
+        const API_KEY = '77088e00-0018-4668-9bca-4bb642769469'; 
 
         // URLパラメータ（?room=xxx）があるかチェック（URL共有からの直接視聴用）
         const urlParams = new URLSearchParams(window.location.search);
         const paramRoomId = urlParams.get('room');
 
-        if (paramRoomId) {
-            // URLに合言葉があれば、自動で視聴画面へ遷移
-            document.getElementById('room-id').value = paramRoomId;
-            startGuest(paramRoomId);
-        }
+        // ページが完全に読み込まれてからSkyWayのオブジェクトを取得する
+        window.addEventListener('load', () => {
+            const { SkyWayContext, SkyWayRoom } = skyway_room; // 👈 ここを小文字の「skyway_room」に修正
 
-        // ポータル画面のボタンイベント
-        document.getElementById('btn-host').onclick = () => {
-            const roomId = document.getElementById('room-id').value.trim();
-            if (!roomId) return alert('合言葉を入力してください');
-            startHost(roomId);
-        };
+            if (paramRoomId) {
+                // URLに合言葉があれば、自動で視聴画面へ遷移
+                document.getElementById('room-id').value = paramRoomId;
+                startGuest(paramRoomId, SkyWayContext, SkyWayRoom);
+            }
 
-        document.getElementById('btn-guest').onclick = () => {
-            const roomId = document.getElementById('room-id').value.trim();
-            if (!roomId) return alert('合言葉を入力してください');
-            startGuest(roomId);
-        };
+            // ポータル画面のボタンイベント
+            document.getElementById('btn-host').onclick = () => {
+                const roomId = document.getElementById('room-id').value.trim();
+                if (!roomId) return alert('合言葉を入力してください');
+                startHost(roomId, SkyWayContext, SkyWayRoom);
+            };
+
+            document.getElementById('btn-guest').onclick = () => {
+                const roomId = document.getElementById('room-id').value.trim();
+                if (!roomId) return alert('合言葉を入力してください');
+                startGuest(roomId, SkyWayContext, SkyWayRoom);
+            };
+        });
 
         // 🟢 ホスト配信処理
-        async function startHost(roomId) {
+        async function startHost(roomId, SkyWayContext, SkyWayRoom) {
             document.getElementById('view-portal').classList.add('hidden');
             document.getElementById('view-host').classList.remove('hidden');
 
@@ -111,7 +114,7 @@ const API_KEY = '77088e00-0018-4668-9bca-4bb642769469';
         }
 
         // 🔵 視聴者処理
-        async function startGuest(roomId) {
+        async function startGuest(roomId, SkyWayContext, SkyWayRoom) {
             document.getElementById('view-portal').classList.add('hidden');
             document.getElementById('view-guest').classList.remove('hidden');
 
@@ -137,5 +140,6 @@ const API_KEY = '77088e00-0018-4668-9bca-4bb642769469';
             }
         }
     </script>
+
 </body>
 </html>
