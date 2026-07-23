@@ -1,232 +1,279 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>楽々画面共有ポータル</title>
     <style>
-        body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #f5f5f5; color: #333; }
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        body {
+            font-family: sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+            color: #333;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
         .hidden { display: none !important; }
-        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
         button:hover { background: #0056b3; }
-        input { padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; width: 200px; }
-        video { width: 100%; border-radius: 8px; background: #000; margin-top: 15px; }
-        .share-url { background: #e9ecef; padding: 10px; border-radius: 4px; word-break: break-all; font-weight: bold; }
+        input {
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 200px;
+        }
+        video {
+            width: 100%;
+            border-radius: 8px;
+            background: #000;
+            margin-top: 15px;
+            max-height: 500px;
+        }
+        .share-url {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 4px;
+            word-break: break-all;
+            font-weight: bold;
+        }
+        .info-note {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 8px;
+        }
     </style>
-    <!-- SkyWay SDK -->
-    <script src="https://jsdelivr.net"></script>
+    <!-- ✅ 正しい SkyWay Room SDK (CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/@skyway-sdk/room@1.0.0/dist/umd/skyway_room.min.js">
+    </script>
 </head>
 <body>
 
-    <!-- 🚪 画面1: ポータル（初期画面） -->
+    <!-- 🚪 ポータル -->
     <div id="view-portal" class="card">
         <h1>楽々画面共有ポータル</h1>
         <p>合言葉（お好きな英数字）を入力してください：</p>
-        <input type="text" id="room-id" placeholder="例: secretsession7"><br><br>
+        <input type="text" id="room-id" placeholder="例: secretsession7" /><br /><br />
         <button id="btn-host" style="background: #28a745;">ホストとして配信開始</button>
         <button id="btn-guest">視聴者として入室</button>
+        <p class="info-note">
+            ※ ホストは「画面全体」または「アプリケーションウィンドウ」を共有できます。
+        </p>
     </div>
 
-    <!-- 🎥 画面2: ホスト配信画面 -->
+    <!-- 🎥 ホスト配信画面 -->
     <div id="view-host" class="card hidden">
         <h2>🎥 ホスト配信中</h2>
-        <p>以下のURLを相手に伝えると、承認なしで勝手に入室して視聴できます：</p>
+        <p>以下のURLを相手に伝えると、承認なしで入室して視聴できます：</p>
         <p class="share-url" id="share-url-text">-</p>
         <video id="local-video" autoplay playsinline muted></video>
-        <br><br>
-        <button onclick="location.href=location.pathname" style="background:#dc3545;">配信を終了して戻る</button>
+        <br /><br />
+        <button onclick="location.href=location.pathname" style="background:#dc3545;">
+            配信を終了して戻る
+        </button>
     </div>
 
-    <!-- 📺 画面3: 視聴画面 -->
+    <!-- 📺 視聴画面 -->
     <div id="view-guest" class="card hidden">
         <h2>📺 視聴画面</h2>
-        <p>ホストの画面共有を待っています...</p>
+        <p id="guest-status">ホストの画面共有を待っています…</p>
         <video id="remote-video" autoplay playsinline controls></video>
-        <br><br>
-        <button onclick="location.href=location.pathname" style="background:#6c757d;">切断して戻る</button>
+        <br /><br />
+        <button onclick="location.href=location.pathname" style="background:#6c757d;">
+            切断して戻る
+        </button>
     </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@skyway-sdk/room@1.0.0/dist/umd/skyway_room.min.js">
-</script>
-<script>
-    // ──────────────────────────────────────────────────────────────
-    // 🚨 【必須】ここにあなたのSkyWay APIキーを入れてください
-    const API_KEY = '77088e00-0018-4668-9bca-4bb642769469';
-    // ──────────────────────────────────────────────────────────────
+    <script>
+        // ─────────────────────────────────────────────
+        // 🚨 【必須】ご自身の SkyWay API キーに置き換えてください
+        const API_KEY = '77088e00-0018-4668-9bca-4bb642769469';
+        // ─────────────────────────────────────────────
 
-    // URLパラメータ（?room=xxx）で直リンク視聴に対応
-    const urlParams = new URLSearchParams(window.location.search);
-    const paramRoomId = urlParams.get('room');
+        // URL パラメータから room を取得（共有リンク経由の視聴）
+        const urlParams = new URLSearchParams(window.location.search);
+        const paramRoomId = urlParams.get('room');
 
-    // DOM 参照
-    const $ = id => document.getElementById(id);
-    const portal = $('view-portal');
-    const hostView = $('view-host');
-    const guestView = $('view-guest');
-    const roomInput = $('room-id');
-    const shareUrlText = $('share-url-text');
-    const localVideo = $('local-video');
-    const remoteVideo = $('remote-video');
+        // DOM 参照
+        const $ = id => document.getElementById(id);
+        const portal = $('view-portal');
+        const hostView = $('view-host');
+        const guestView = $('view-guest');
+        const roomInput = $('room-id');
+        const shareUrlText = $('share-url-text');
+        const localVideo = $('local-video');
+        const remoteVideo = $('remote-video');
+        const guestStatus = $('guest-status');
 
-    // ─── ページ読み込み完了後に起動 ───
-    window.addEventListener('load', () => {
-        // SkyWay SDK が正しく読み込まれているか確認
-        if (typeof skyway_room === 'undefined') {
-            alert('SkyWay SDK の読み込みに失敗しました。ネットワークを確認してください。');
-            return;
-        }
-
-        // URLに合言葉があれば自動で視聴モードへ
-        if (paramRoomId) {
-            roomInput.value = paramRoomId;
-            startGuest(paramRoomId);
-        }
-
-        // ポータルボタン
-        $('btn-host').onclick = () => {
-            const id = roomInput.value.trim();
-            if (!id) return alert('合言葉を入力してください');
-            startHost(id);
-        };
-
-        $('btn-guest').onclick = () => {
-            const id = roomInput.value.trim();
-            if (!id) return alert('合言葉を入力してください');
-            startGuest(id);
-        };
-    });
-
-    // ─── ホスト（配信開始） ───
-    async function startHost(roomId) {
-        // UI 切り替え
-        portal.classList.add('hidden');
-        hostView.classList.remove('hidden');
-        guestView.classList.add('hidden');
-
-        // 招待URLを生成
-        const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(roomId)}`;
-        shareUrlText.textContent = inviteUrl;
-
-        try {
-            // 1. 画面共有ストリームを取得
-            const stream = await navigator.mediaDevices.getDisplayMedia({
-                video: true,
-                audio: true,
-            });
-            localVideo.srcObject = stream;
-
-            const [videoTrack] = stream.getVideoTracks();
-            const [audioTrack] = stream.getAudioTracks();
-
-            // 2. SkyWay 接続 & ルーム作成
-            const context = await skyway_room.SkyWayContext.Create(API_KEY);
-            const room = await skyway_room.SkyWayRoom.FindOrCreate(context, {
-                type: 'p2p',
-                name: roomId,
-            });
-            const me = await room.join();
-
-            // 3. 映像・音声を配信
-            if (videoTrack) {
-                await me.publish(new skyway_room.LocalVideoTrack(videoTrack));
-            }
-            if (audioTrack) {
-                await me.publish(new skyway_room.LocalAudioTrack(audioTrack));
+        // ─── ページ読み込み完了後に実行 ───
+        window.addEventListener('load', () => {
+            // SDK が正しく読み込まれているか確認
+            if (typeof skyway_room === 'undefined') {
+                alert('❌ SkyWay SDK の読み込みに失敗しました。\nネットワーク接続を確認してください。');
+                return;
             }
 
-            // 4. 共有停止時に自動でトップへ戻る
-            videoTrack.onended = () => {
-                location.href = location.pathname;
+            // URL に ?room=xxx があれば自動で視聴モードへ
+            if (paramRoomId) {
+                roomInput.value = paramRoomId;
+                startGuest(paramRoomId);
+            }
+
+            // ボタンイベント
+            $('btn-host').onclick = () => {
+                const id = roomInput.value.trim();
+                if (!id) return alert('合言葉を入力してください');
+                startHost(id);
             };
 
-            // 5. 視聴者が接続したら自動で映像を受信するようリスナーを設定
-            room.onStreamPublished.add(async (e) => {
-                const pub = e.publication;
-                if (pub.publisher.id === me.id) return;
-                try {
-                    const { stream: remoteStream } = await me.subscribe(pub.id);
-                    if (pub.contentType === 'video') {
-                        remoteVideo.srcObject = remoteStream;
-                    }
-                } catch (err) {
-                    console.warn('Subscribe error:', err);
-                }
-            });
-
-            // 既に誰かが配信していたらそれを受信
-            room.publications.forEach(async (pub) => {
-                if (pub.publisher.id === me.id) return;
-                try {
-                    const { stream: remoteStream } = await me.subscribe(pub.id);
-                    if (pub.contentType === 'video') {
-                        remoteVideo.srcObject = remoteStream;
-                    }
-                } catch (err) {
-                    console.warn('Subscribe error:', err);
-                }
-            });
-
-        } catch (err) {
-            alert('配信開始に失敗しました: ' + err.message);
-            location.reload();
-        }
-    }
-
-    // ─── ゲスト（視聴） ───
-    async function startGuest(roomId) {
-        // UI 切り替え
-        portal.classList.add('hidden');
-        guestView.classList.remove('hidden');
-        hostView.classList.add('hidden');
-
-        try {
-            // 1. SkyWay 接続 & ルーム参加
-            const context = await skyway_room.SkyWayContext.Create(API_KEY);
-            const room = await skyway_room.SkyWayRoom.FindOrCreate(context, {
-                type: 'p2p',
-                name: roomId,
-            });
-            const me = await room.join();
-
-            // 2. 配信者が公開したストリームを購読
-            const subscribe = async (publication) => {
-                if (publication.publisher.id === me.id) return;
-                try {
-                    const { stream } = await me.subscribe(publication.id);
-                    if (publication.contentType === 'video') {
-                        remoteVideo.srcObject = stream;
-                    }
-                } catch (err) {
-                    console.warn('Subscribe error:', err);
-                }
+            $('btn-guest').onclick = () => {
+                const id = roomInput.value.trim();
+                if (!id) return alert('合言葉を入力してください');
+                startGuest(id);
             };
+        });
 
-            room.onStreamPublished.add((e) => subscribe(e.publication));
+        // ─── ホスト（配信開始） ───
+        async function startHost(roomId) {
+            portal.classList.add('hidden');
+            hostView.classList.remove('hidden');
+            guestView.classList.add('hidden');
 
-            // 既存の配信もチェック
-            room.publications.forEach(subscribe);
+            // 招待URLを生成
+            const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(roomId)}`;
+            shareUrlText.textContent = inviteUrl;
 
-            // 3. ホストが切断されたらリロード（戻る）
-            room.onMemberLeft.add((e) => {
-                if (e.member.id !== me.id) {
-                    // ホストらしきメンバーが抜けたらトップへ
+            try {
+                // 1. 画面共有ストリームを取得
+                const stream = await navigator.mediaDevices.getDisplayMedia({
+                    video: true,
+                    audio: true,
+                });
+                localVideo.srcObject = stream;
+
+                const [videoTrack] = stream.getVideoTracks();
+                const [audioTrack] = stream.getAudioTracks();
+
+                // 2. SkyWay 接続 & ルーム作成
+                const context = await skyway_room.SkyWayContext.Create(API_KEY);
+                const room = await skyway_room.SkyWayRoom.FindOrCreate(context, {
+                    type: 'p2p',
+                    name: roomId,
+                });
+                const me = await room.join();
+
+                // 3. 映像・音声を公開
+                if (videoTrack) {
+                    await me.publish(new skyway_room.LocalVideoTrack(videoTrack));
+                }
+                if (audioTrack) {
+                    await me.publish(new skyway_room.LocalAudioTrack(audioTrack));
+                }
+
+                // 4. 共有停止時にトップへ戻る
+                videoTrack.onended = () => {
                     location.href = location.pathname;
-                }
-            });
+                };
 
-        } catch (err) {
-            alert('視聴開始に失敗しました: ' + err.message);
-            location.reload();
+                // 5. 新しく来た視聴者の映像を自動購読
+                room.onStreamPublished.add(async (e) => {
+                    const pub = e.publication;
+                    if (pub.publisher.id === me.id) return;
+                    try {
+                        const { stream: remoteStream } = await me.subscribe(pub.id);
+                        if (pub.contentType === 'video') {
+                            remoteVideo.srcObject = remoteStream;
+                        }
+                    } catch (err) {
+                        console.warn('Subscribe error:', err);
+                    }
+                });
+
+                // 既存の配信を購読（もし誰かが先に配信していた場合）
+                room.publications.forEach(async (pub) => {
+                    if (pub.publisher.id === me.id) return;
+                    try {
+                        const { stream: remoteStream } = await me.subscribe(pub.id);
+                        if (pub.contentType === 'video') {
+                            remoteVideo.srcObject = remoteStream;
+                        }
+                    } catch (err) {
+                        console.warn('Subscribe error:', err);
+                    }
+                });
+
+            } catch (err) {
+                alert('配信開始に失敗しました: ' + err.message);
+                location.reload();
+            }
         }
-    }
 
-    // ─── ホスト側で「戻る」ボタンが押された時の補助 ───
-    // 「配信を終了して戻る」ボタンは location.href で既に処理済み
-    // 視聴側の「切断して戻る」も同様
+        // ─── ゲスト（視聴） ───
+        async function startGuest(roomId) {
+            portal.classList.add('hidden');
+            guestView.classList.remove('hidden');
+            hostView.classList.add('hidden');
+            guestStatus.textContent = 'ホストの画面共有を待っています…';
 
-    console.log('✅ 楽々画面共有ポータル ready');
-    console.log('📌 API_KEY:', API_KEY ? '設定済み' : '⚠️ 未設定');
-</script>
+            try {
+                const context = await skyway_room.SkyWayContext.Create(API_KEY);
+                const room = await skyway_room.SkyWayRoom.FindOrCreate(context, {
+                    type: 'p2p',
+                    name: roomId,
+                });
+                const me = await room.join();
+
+                // 購読処理（配信者が公開したら自動で受信）
+                const subscribe = async (publication) => {
+                    if (publication.publisher.id === me.id) return;
+                    try {
+                        const { stream } = await me.subscribe(publication.id);
+                        if (publication.contentType === 'video') {
+                            remoteVideo.srcObject = stream;
+                            guestStatus.textContent = '✅ 受信中';
+                        }
+                    } catch (err) {
+                        console.warn('Subscribe error:', err);
+                    }
+                };
+
+                room.onStreamPublished.add((e) => subscribe(e.publication));
+
+                // 既存の配信をチェック
+                room.publications.forEach(subscribe);
+
+                // ホストが退出したらトップへ戻る
+                room.onMemberLeft.add((e) => {
+                    if (e.member.id !== me.id) {
+                        // ホストが抜けたと想定
+                        location.href = location.pathname;
+                    }
+                });
+
+            } catch (err) {
+                alert('視聴開始に失敗しました: ' + err.message);
+                location.reload();
+            }
+        }
+
+        // コンソールに起動ログ
+        console.log('✅ 楽々画面共有ポータル ready');
+        console.log('📌 API_KEY:', API_KEY ? '設定済み' : '⚠️ 未設定');
+    </script>
 </body>
 </html>
