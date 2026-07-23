@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>楽々画面共有ポータル</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #f5f5f5; color: #333; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .hidden { display: none !important; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #0056b3; }
+        input { padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; width: 200px; }
+        video { width: 100%; border-radius: 8px; background: #000; margin-top: 15px; }
+        .share-url { background: #e9ecef; padding: 10px; border-radius: 4px; word-break: break-all; font-weight: bold; }
+    </style>
+    <!-- SkyWay SDK -->
+    <script src="https://jsdelivr.net"></script>
+</head>
+<body>
+
+    <!-- 🚪 画面1: ポータル（初期画面） -->
+    <div id="view-portal" class="card">
+        <h1>楽々画面共有ポータル</h1>
+        <p>合言葉（お好きな英数字）を入力してください：</p>
+        <input type="text" id="room-id" placeholder="例: secretsession7"><br><br>
+        <button id="btn-host" style="background: #28a745;">ホストとして配信開始</button>
+        <button id="btn-guest">視聴者として入室</button>
+    </div>
+
+    <!-- 🎥 画面2: ホスト配信画面 -->
+    <div id="view-host" class="card hidden">
+        <h2>🎥 ホスト配信中</h2>
+        <p>以下のURLを相手に伝えると、承認なしで勝手に入室して視聴できます：</p>
+        <p class="share-url" id="share-url-text">-</p>
+        <video id="local-video" autoplay playsinline muted></video>
+        <br><br>
+        <button onclick="location.href=location.pathname" style="background:#dc3545;">配信を終了して戻る</button>
+    </div>
+
+    <!-- 📺 画面3: 視聴画面 -->
+    <div id="view-guest" class="card hidden">
+        <h2>📺 視聴画面</h2>
+        <p>ホストの画面共有を待っています...</p>
+        <video id="remote-video" autoplay playsinline controls></video>
+        <br><br>
+        <button onclick="location.href=location.pathname" style="background:#6c757d;">切断して戻る</button>
+    </div>
+
+    <script>
+        const { SkyWayContext, SkyWayRoom } = SkyWayRoom;
+        
+        // 🚨 【必須】ここにあなたのSkyWay APIキーを入れてください
+const API_KEY = '77088e00-0018-4668-9bca-4bb642769469'; 
+
+
+        // URLパラメータ（?room=xxx）があるかチェック（URL共有からの直接視聴用）
+        const urlParams = new URLSearchParams(window.location.search);
+        const paramRoomId = urlParams.get('room');
+
+        if (paramRoomId) {
+            // URLに合言葉があれば、自動で視聴画面へ遷移
+            document.getElementById('room-id').value = paramRoomId;
+            startGuest(paramRoomId);
+        }
+
+        // ポータル画面のボタンイベント
+        document.getElementById('btn-host').onclick = () => {
+            const roomId = document.getElementById('room-id').value.trim();
+            if (!roomId) return alert('合言葉を入力してください');
+            startHost(roomId);
+        };
+
+        document.getElementById('btn-guest').onclick = () => {
+            const roomId = document.getElementById('room-id').value.trim();
+            if (!roomId) return alert('合言葉を入力してください');
+            startGuest(roomId);
+        };
+
+        // 🟢 ホスト配信処理
+        async function startHost(roomId) {
+            document.getElementById('view-portal').classList.add('hidden');
+            document.getElementById('view-host').classList.remove('hidden');
+
+            // 招待URLを生成して表示
+            const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${encodeURIComponent(roomId)}`;
+            document.getElementById('share-url-text').innerText = inviteUrl;
+
+            try {
+                // 画面共有の開始（ブラウザのポップアップが立ち上がります）
+                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+                document.getElementById('local-video').srcObject = stream;
+
+                // SkyWay接続と部屋作成
+                const context = await SkyWayContext.Create(API_KEY);
+                const room = await SkyWayRoom.FindOrCreate(context, { type: 'p2p', name: roomId });
+                const me = await room.join();
+
+                // 映像と音声を送信
+                const [videoTrack] = stream.getVideoTracks();
+                const [audioTrack] = stream.getAudioTracks();
+                if (videoTrack) await me.publish(new SkyWayRoom.LocalVideoTrack(videoTrack));
+                if (audioTrack) await me.publish(new SkyWayRoom.LocalAudioTrack(audioTrack));
+                
+                // 配信が閉じられたら自動でリロード
+                videoTrack.onended = () => { location.reload(); };
+            } catch (err) {
+                alert('画面共有の開始に失敗しました: ' + err.message);
+                location.reload();
+            }
+        }
+
+        // 🔵 視聴者処理
+        async function startGuest(roomId) {
+            document.getElementById('view-portal').classList.add('hidden');
+            document.getElementById('view-guest').classList.remove('hidden');
+
+            try {
+                const context = await SkyWayContext.Create(API_KEY);
+                const room = await SkyWayRoom.FindOrCreate(context, { type: 'p2p', name: roomId });
+                const me = await room.join();
+
+                // 配信データの受信処理
+                const subscribe = async (publication) => {
+                    if (publication.publisher.id === me.id) return;
+                    const { stream } = await me.subscribe(publication.id);
+                    if (publication.contentType === 'video') {
+                        document.getElementById('remote-video').srcObject = stream;
+                    }
+                };
+
+                room.onStreamPublished.add((e) => subscribe(e.publication));
+                room.publications.forEach(subscribe);
+            } catch (err) {
+                alert('接続に失敗しました: ' + err.message);
+                location.reload();
+            }
+        }
+    </script>
+</body>
+</html>
